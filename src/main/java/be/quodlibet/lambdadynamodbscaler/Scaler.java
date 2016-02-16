@@ -1,6 +1,7 @@
 package be.quodlibet.lambdadynamodbscaler;
 
 import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.InstanceProfileCredentialsProvider;
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
@@ -10,12 +11,16 @@ import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.amazonaws.services.dynamodbv2.model.TableDescription;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
+import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import java.io.IOException;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.util.Calendar;
 import java.util.Objects;
 import java.util.Properties;
@@ -26,18 +31,23 @@ import java.util.Properties;
  */
 public class Scaler
 {
-    private static final String access_key_id = "ACCESSKEY";
-    private static final String secret_access_key = "SECRET";
-    private static final String configBucketName = "BUCKETNAME";
+    private String access_key_id;
+    private String secret_access_key;
+    private static final String configBucketName = "curalate-configuration-qa";
     private static final String configKey = "scaler.properties";
-    private static final Regions region = Regions.EU_WEST_1;
+    private static final Regions region = Regions.US_EAST_1;
 
+    private FileInputStream input;
+    private static final String configFileLocation = "config.properties";
+    private boolean useInstanceProfileCredentials = false;
     private BasicAWSCredentials awsCreds;
+    private Properties awsCredsProperties;
     private Properties ScalingProperties;
     private AmazonS3 s3Client;
     private AmazonDynamoDBClient clnt;
     private DynamoDB dynamoDB;
     private LambdaLogger log;
+
     public Response scale(Object input, Context context)
     {
         if (context != null)
@@ -122,19 +132,70 @@ public class Scaler
     private void setup()
     {
         //Setup credentials
-        if (awsCreds == null)
+        File configFile = new File(configFileLocation);
+
+        if (awsCreds == null && configFile.exists())
         {
-            awsCreds = new BasicAWSCredentials(access_key_id, secret_access_key);
+            awsCredsProperties = new Properties();
+            input = null;
+            try {
+		input = new FileInputStream(configFileLocation);
+                awsCredsProperties.load(input);
+
+                if (awsCredsProperties.containsKey("access_key_id"))
+                {
+                  access_key_id = (String) awsCredsProperties.get("access_key_id");
+                }
+                if (awsCredsProperties.containsKey("secret_access_key"))
+                {
+                  secret_access_key = (String) awsCredsProperties.get("secret_access_key");
+                } 
+
+                awsCreds = new BasicAWSCredentials(access_key_id, secret_access_key);
+                useInstanceProfileCredentials = false;
+            } catch (IOException ex) {
+                useInstanceProfileCredentials = true;
+		log("Failed to read config file : " + configFileLocation  + " (" + ex.getMessage() + ")");
+	    } finally {
+		if (input != null) {
+			try {
+				input.close();
+			} catch (IOException e) {
+				log("Failed to close file properly: " + configFileLocation);
+			}
+		}
+	    }
+        }
+        else
+        {
+           //Going to use IAM Instance Profile instead of AWS credentials
+           useInstanceProfileCredentials = true;
+           //new InstanceProfileCredentialsProvider();
         }
         //Setup S3 client
         if (s3Client == null)
         {
-            s3Client = new AmazonS3Client(awsCreds);
+            if (!useInstanceProfileCredentials)
+            {
+              s3Client = new AmazonS3Client(awsCreds);
+            }
+            else
+            {
+              //s3Client = new AmazonS3Client(new InstanceProfileCredentialsProvider() );
+              s3Client = new AmazonS3Client();
+            }
         }
         //Setup DynamoDB client
         if (clnt == null)
         {
-            clnt = new AmazonDynamoDBClient(awsCreds);
+            if (!useInstanceProfileCredentials)
+            {
+              clnt = new AmazonDynamoDBClient(awsCreds);
+            }
+            else
+            {
+              clnt = new AmazonDynamoDBClient();
+            }
             dynamoDB = new DynamoDB(clnt);
             clnt.setRegion(Region.getRegion(region));
         }
