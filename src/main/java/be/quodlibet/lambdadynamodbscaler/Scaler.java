@@ -1,7 +1,6 @@
 package be.quodlibet.lambdadynamodbscaler;
 
 import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.InstanceProfileCredentialsProvider;
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
@@ -33,13 +32,13 @@ public class Scaler
 {
     private String access_key_id;
     private String secret_access_key;
-    private static final String configBucketName = "curalate-configuration-qa";
+    private static final String configBucketName = "BUCKET";
     private static final String configKey = "scaler.properties";
-    private static final Regions region = Regions.US_EAST_1;
+    private static final Regions region = Regions.EU_WEST_1;
 
     private FileInputStream input;
     private static final String configFileLocation = "config.properties";
-    private boolean useInstanceProfileCredentials = false;
+    private boolean useIAMRole = false;
     private BasicAWSCredentials awsCreds;
     private Properties awsCredsProperties;
     private Properties ScalingProperties;
@@ -152,9 +151,9 @@ public class Scaler
                 } 
 
                 awsCreds = new BasicAWSCredentials(access_key_id, secret_access_key);
-                useInstanceProfileCredentials = false;
+                useIAMRole = false;
             } catch (IOException ex) {
-                useInstanceProfileCredentials = true;
+                useIAMRole = true;
 		log("Failed to read config file : " + configFileLocation  + " (" + ex.getMessage() + ")");
 	    } finally {
 		if (input != null) {
@@ -168,27 +167,25 @@ public class Scaler
         }
         else
         {
-           //Going to use IAM Instance Profile instead of AWS credentials
-           useInstanceProfileCredentials = true;
-           //new InstanceProfileCredentialsProvider();
+           //Going to use IAM Role instead of AWS credentials
+           useIAMRole = true;
         }
         //Setup S3 client
         if (s3Client == null)
         {
-            if (!useInstanceProfileCredentials)
+            if (!useIAMRole)
             {
               s3Client = new AmazonS3Client(awsCreds);
             }
             else
             {
-              //s3Client = new AmazonS3Client(new InstanceProfileCredentialsProvider() );
               s3Client = new AmazonS3Client();
             }
         }
         //Setup DynamoDB client
         if (clnt == null)
         {
-            if (!useInstanceProfileCredentials)
+            if (!useIAMRole)
             {
               clnt = new AmazonDynamoDBClient(awsCreds);
             }
