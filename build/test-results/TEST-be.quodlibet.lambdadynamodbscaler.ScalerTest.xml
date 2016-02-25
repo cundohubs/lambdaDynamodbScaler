@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="be.quodlibet.lambdadynamodbscaler.ScalerTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2016-02-24T21:49:23" hostname="Facundos-MacBook-Pro.local" time="7.516">
+  <properties/>
+  <testcase name="testScale" classname="be.quodlibet.lambdadynamodbscaler.ScalerTest" time="7.516"/>
+  <system-out><![CDATA[scale
+curalate-configuration-qa
+scaler.properties
+Scaling for hour : 13
+
+No values found for table com.curalate.deets.items
+Scaling for hour : 13
+
+No values found for table com.curalate.deets.items
+
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -10,7 +10,6 @@ import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.amazonaws.services.dynamodbv2.model.TableDescription;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
-import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GetObjectRequest;
@@ -19,7 +18,6 @@ import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import java.io.IOException;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.InputStream;
 import java.util.Calendar;
 import java.util.Objects;
 import java.util.Properties;
@@ -32,9 +30,11 @@ public class Scaler
 {
     private String access_key_id;
     private String secret_access_key;
-    private static final String configBucketName = "BUCKET";
-    private static final String configKey = "scaler.properties";
-    private static final Regions region = Regions.EU_WEST_1;
+    private static final String configBucketName = "curalate-configuration";
+    private static final String configKey = "dynamodbscaler/scaler.properties";
+    private static final Region defaultRegion = Region.getRegion(Regions.US_EAST_1);
+    private Region region = Regions.getCurrentRegion();
+   
 
     private FileInputStream input;
     private static final String configFileLocation = "config.properties";
@@ -47,7 +47,7 @@ public class Scaler
     private DynamoDB dynamoDB;
     private LambdaLogger log;
 
-    public Response scale(Object input, Context context)
+    public Response scale(Request request, Context context)
     {
         if (context != null)
         {
@@ -194,7 +194,8 @@ public class Scaler
               clnt = new AmazonDynamoDBClient();
             }
             dynamoDB = new DynamoDB(clnt);
-            clnt.setRegion(Region.getRegion(region));
+            if (region == null) region = defaultRegion;
+            clnt.setRegion(region);
         }
         //Load properties from S3
         if (ScalingProperties == null)
