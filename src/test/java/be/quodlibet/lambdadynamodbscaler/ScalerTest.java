@@ -10,6 +10,9 @@ import org.junit.Test;
  */
 public class ScalerTest
 {
+    String S3BucketName = "curalate-configuration-qa";
+    String S3ObjectKey  = "scaler.properties";
+
     public ScalerTest()
     {
     }
@@ -23,7 +26,10 @@ public class ScalerTest
         Context context = null;
         Scaler instance = new Scaler();
         Object expResult = null;
-        Response result = instance.scale(null, context);
+        Request request = new Request(S3BucketName, S3ObjectKey);
+        System.out.println(request.s3BucketName);
+        System.out.println(request.s3ObjectKey);
+        Response result = instance.scale(request, context);
         assertTrue(result.getSuccess());
     }
 
