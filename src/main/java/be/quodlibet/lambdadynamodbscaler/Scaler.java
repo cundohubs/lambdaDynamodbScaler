@@ -1,7 +1,6 @@
 package be.quodlibet.lambdadynamodbscaler;
 
 import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.InstanceProfileCredentialsProvider;
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
@@ -11,7 +10,6 @@ import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.amazonaws.services.dynamodbv2.model.TableDescription;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
-import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GetObjectRequest;
@@ -20,7 +18,6 @@ import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import java.io.IOException;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.InputStream;
 import java.util.Calendar;
 import java.util.Objects;
 import java.util.Properties;
@@ -33,13 +30,15 @@ public class Scaler
 {
     private String access_key_id;
     private String secret_access_key;
-    private static final String configBucketName = "curalate-configuration-qa";
-    private static final String configKey = "scaler.properties";
-    private static final Regions region = Regions.US_EAST_1;
+    private static final String configBucketName = "curalate-configuration";
+    private static final String configKey = "dynamodbscaler/scaler.properties";
+    private static final Region defaultRegion = Region.getRegion(Regions.US_EAST_1);
+    private Region region = Regions.getCurrentRegion();
+   
 
     private FileInputStream input;
     private static final String configFileLocation = "config.properties";
-    private boolean useInstanceProfileCredentials = false;
+    private boolean useIAMRole = false;
     private BasicAWSCredentials awsCreds;
     private Properties awsCredsProperties;
     private Properties ScalingProperties;
@@ -48,7 +47,7 @@ public class Scaler
     private DynamoDB dynamoDB;
     private LambdaLogger log;
 
-    public Response scale(Object input, Context context)
+    public Response scale(Request request, Context context)
     {
         if (context != null)
         {
@@ -152,9 +151,9 @@ public class Scaler
                 } 
 
                 awsCreds = new BasicAWSCredentials(access_key_id, secret_access_key);
-                useInstanceProfileCredentials = false;
+                useIAMRole = false;
             } catch (IOException ex) {
-                useInstanceProfileCredentials = true;
+                useIAMRole = true;
 		log("Failed to read config file : " + configFileLocation  + " (" + ex.getMessage() + ")");
 	    } finally {
 		if (input != null) {
@@ -168,27 +167,25 @@ public class Scaler
         }
         else
         {
-           //Going to use IAM Instance Profile instead of AWS credentials
-           useInstanceProfileCredentials = true;
-           //new InstanceProfileCredentialsProvider();
+           //Going to use IAM Role instead of AWS credentials
+           useIAMRole = true;
         }
         //Setup S3 client
         if (s3Client == null)
         {
-            if (!useInstanceProfileCredentials)
+            if (!useIAMRole)
             {
               s3Client = new AmazonS3Client(awsCreds);
             }
             else
             {
-              //s3Client = new AmazonS3Client(new InstanceProfileCredentialsProvider() );
               s3Client = new AmazonS3Client();
             }
         }
         //Setup DynamoDB client
         if (clnt == null)
         {
-            if (!useInstanceProfileCredentials)
+            if (!useIAMRole)
             {
               clnt = new AmazonDynamoDBClient(awsCreds);
             }
@@ -197,7 +194,8 @@ public class Scaler
               clnt = new AmazonDynamoDBClient();
             }
             dynamoDB = new DynamoDB(clnt);
-            clnt.setRegion(Region.getRegion(region));
+            if (region == null) region = defaultRegion;
+            clnt.setRegion(region);
         }
         //Load properties from S3
         if (ScalingProperties == null)

@@ -1,0 +1,4 @@
+{
+  "s3BucketName": "curalate-configuration",
+  "s3ObjectKey": "dynamodbscaler/scaler.properties"
+}
