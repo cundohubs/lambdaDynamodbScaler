@@ -15,6 +15,7 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
+import com.amazonaws.AmazonServiceException;
 import java.io.IOException;
 import java.io.File;
 import java.io.FileInputStream;
@@ -30,8 +31,9 @@ public class Scaler
 {
     private String access_key_id;
     private String secret_access_key;
-    private static final String configBucketName = "curalate-configuration";
-    private static final String configKey = "dynamodbscaler/scaler.properties";
+    private static final String configBucketName = "curalate-configuration-qa";
+    private static final String configKey = "scaler.properties";
+    private static final String configPrefix = "dynamodbscaler";
     private static final Region defaultRegion = Region.getRegion(Regions.US_EAST_1);
     private Region region = Regions.getCurrentRegion();
    
@@ -67,20 +69,35 @@ public class Scaler
             for (String tableName : tableNames)
             {
                 //Check if there is a change requested for this hour
+            	Properties tableProperties = getTableScalingProperties(tableName);
                 String readProp = hour + "." + tableName + ".read";
                 String writeProp = hour + "." + tableName + ".write";
-                if (ScalingProperties.containsKey(readProp)
-                    && ScalingProperties.containsKey(writeProp))
+
+                if (tableProperties.containsKey(readProp)
+                    && tableProperties.containsKey(writeProp))
                 {
-                    String readCapacity = (String) ScalingProperties.getProperty(readProp);
-                    String writeCapacity = (String) ScalingProperties.getProperty(writeProp);
+                    String readCapacity = (String) tableProperties.getProperty(readProp);
+                    String writeCapacity = (String) tableProperties.getProperty(writeProp);
                     //Execute the scaling change
                     message += scaleTable(tableName, Long.parseLong(readCapacity), Long.parseLong(writeCapacity));
                 }
+                else if (tableProperties.containsKey(readProp))
+                {
+                    String readCapacity = (String) tableProperties.getProperty(readProp);
+                  //Execute the scaling change
+                    message += scaleTable(tableName, Long.parseLong(readCapacity), Long.parseLong("0"));
+                }
+                else if (tableProperties.containsKey(writeProp))
+                {
+                    String writeCapacity = (String) tableProperties.getProperty(writeProp);
+                    //Execute the scaling change
+                    message += scaleTable(tableName, Long.parseLong("0"), Long.parseLong(writeCapacity));
+                }
                 else
                 {
-                    log("No values found for table " + tableName );
-                    message += "\nNo values found for table " + tableName + "\n";
+                	String hourTableMessage = "No values found for table " + tableName ;
+                    log(hourTableMessage);
+                    message += "\n" + hourTableMessage + "\n";
                 }
             }
         }
@@ -111,10 +128,17 @@ public class Scaler
     private String scaleTable(String tableName, Long readCapacity, Long writeCapacity)
     {
         Table table = dynamoDB.getTable(tableName);
+        TableDescription d = table.describe();
         ProvisionedThroughput tp = new ProvisionedThroughput();
+        
+        if (readCapacity == 0)
+        	readCapacity = d.getProvisionedThroughput().getReadCapacityUnits();
+        if (writeCapacity == 0)
+        	writeCapacity = d.getProvisionedThroughput().getWriteCapacityUnits();
+
         tp.setReadCapacityUnits(readCapacity);
         tp.setWriteCapacityUnits(writeCapacity);
-        TableDescription d = table.describe();
+        
         if (!Objects.equals(d.getProvisionedThroughput().getReadCapacityUnits(), readCapacity)
             || !Objects.equals(d.getProvisionedThroughput().getWriteCapacityUnits(), writeCapacity))
         {
@@ -128,6 +152,27 @@ public class Scaler
             return tableName + "\n Requested throughput equals current throughput\n";
         }
     }
+    
+    private Properties getTableScalingProperties(String tableName)
+    {
+    	Properties tableProperties = new Properties();
+    	try
+    	{
+    		S3Object object = s3Client.getObject(new GetObjectRequest(configBucketName, configPrefix + "/" + tableName + ".properties"));
+    		S3ObjectInputStream stream = object.getObjectContent();
+    		tableProperties.load(stream);
+    	}
+        catch (IOException ex)
+        {
+           log("Failed to read config file : s3://" + configBucketName + "/" + configPrefix + "/" + tableName + " (" + ex.getMessage() + ")");
+        }
+        catch (AmazonServiceException ex)
+        {
+           log("Failed to read config file : s3://" + configBucketName + "/" + configPrefix + "/" + tableName + " (" + ex.getMessage() + ")");
+        }
+    	return tableProperties;
+    }
+    
     private void setup()
     {
         //Setup credentials
@@ -203,13 +248,13 @@ public class Scaler
              try
              {
                 ScalingProperties = new Properties();
-                S3Object object = s3Client.getObject(new GetObjectRequest(configBucketName, configKey));
+                S3Object object = s3Client.getObject(new GetObjectRequest(configBucketName, configPrefix + "/" + configKey));
                 S3ObjectInputStream stream = object.getObjectContent();
                 ScalingProperties.load(stream);
             }
              catch (IOException ex)
             {
-                log("Failed to read config file : " + configBucketName + "/" + configKey + "(" + ex.getMessage() + ")");
+                log("Failed to read config file : " + configBucketName + "/" + configPrefix + "/" + configKey + "(" + ex.getMessage() + ")");
             }
         }
     }
