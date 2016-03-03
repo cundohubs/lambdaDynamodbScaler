@@ -22,6 +22,8 @@ import java.io.FileInputStream;
 import java.util.Calendar;
 import java.util.Objects;
 import java.util.Properties;
+import java.sql.Timestamp;
+import java.util.Date;
 
 /**
  *
@@ -31,7 +33,7 @@ public class Scaler
 {
     private String access_key_id;
     private String secret_access_key;
-    private static final String configBucketName = "curalate-configuration-qa";
+    private static final String configBucketName = "curalate-configuration";
     private static final String configKey = "scaler.properties";
     private static final String configPrefix = "dynamodbscaler";
     private static final Region defaultRegion = Region.getRegion(Regions.US_EAST_1);
@@ -105,7 +107,7 @@ public class Scaler
         {
             log("tables parameter not found in properties file");
         }
-        log(message);
+        //log(message);
         Response response = new Response(true, message);
         return response;
     }
@@ -115,13 +117,16 @@ public class Scaler
      */
     private void log(String message)
     {
+    	java.util.Date date= new java.util.Date();
+   	 	Timestamp timestamp = new Timestamp(date.getTime());
+   	 	
         if (log != null)
         {
-            log.log(message);
+            log.log(timestamp + ": " + message);
         }
         else
         {
-            System.out.println(message);
+            System.out.println(timestamp + ":" + message);
         }
     }
 
@@ -168,7 +173,7 @@ public class Scaler
         }
         catch (AmazonServiceException ex)
         {
-           log("Failed to read config file : s3://" + configBucketName + "/" + configPrefix + "/" + tableName + " (" + ex.getMessage() + ")");
+           log("Failed to locate config file in S3 bucket: s3://" + configBucketName + "/" + configPrefix + "/" + tableName + " (" + ex.getMessage() + ")");
         }
     	return tableProperties;
     }
@@ -183,7 +188,7 @@ public class Scaler
             awsCredsProperties = new Properties();
             input = null;
             try {
-		input = new FileInputStream(configFileLocation);
+            	input = new FileInputStream(configFileLocation);
                 awsCredsProperties.load(input);
 
                 if (awsCredsProperties.containsKey("access_key_id"))
