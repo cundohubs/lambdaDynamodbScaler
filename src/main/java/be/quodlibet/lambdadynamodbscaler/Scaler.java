@@ -22,7 +22,9 @@ import java.io.FileInputStream;
 import java.util.Calendar;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.TimeZone;
 import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 
 /**
@@ -59,7 +61,7 @@ public class Scaler
         }
         setup();
         //Get the hour that was started
-        Calendar rightNow = Calendar.getInstance();
+        Calendar rightNow = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
         String hour = String.format("%02d", rightNow.get(Calendar.HOUR_OF_DAY));
         String message = "Scaling for hour : " + hour + "\n";
         log(message);
@@ -97,7 +99,7 @@ public class Scaler
                 }
                 else
                 {
-                	String hourTableMessage = "No values found for table " + tableName ;
+                	String hourTableMessage = " No values found for table " + hour + "." + tableName ;
                     log(hourTableMessage);
                     message += "\n" + hourTableMessage + "\n";
                 }
@@ -119,6 +121,7 @@ public class Scaler
     {
     	java.util.Date date= new java.util.Date();
    	 	Timestamp timestamp = new Timestamp(date.getTime());
+   	 	String simpleTimestamp = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss").format(timestamp);
    	 	
         if (log != null)
         {
@@ -126,7 +129,7 @@ public class Scaler
         }
         else
         {
-            System.out.println(timestamp + ":" + message);
+            System.out.println(simpleTimestamp + ":" + message);
         }
     }
 
@@ -170,10 +173,6 @@ public class Scaler
         catch (IOException ex)
         {
            log("Failed to read config file : s3://" + configBucketName + "/" + configPrefix + "/" + tableName + " (" + ex.getMessage() + ")");
-        }
-        catch (AmazonServiceException ex)
-        {
-           log("Failed to locate config file in S3 bucket: s3://" + configBucketName + "/" + configPrefix + "/" + tableName + ".properties (" + ex.getMessage() + ")");
         }
     	return tableProperties;
     }
