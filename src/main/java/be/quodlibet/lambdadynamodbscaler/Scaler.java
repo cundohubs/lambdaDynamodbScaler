@@ -33,7 +33,11 @@ public class Scaler
 {
     private String access_key_id;
     private String secret_access_key;
+<<<<<<< HEAD
     private static final String configBucketName = "curalate-configuration";
+=======
+    private static final String configBucketName = "curalate-configuration-qa";
+>>>>>>> 441fb37906a25f26b0b1cabee70846a548c54851
     private static final String configKey = "scaler.properties";
     private static final String configPrefix = "dynamodbscaler";
     private static final Region defaultRegion = Region.getRegion(Regions.US_EAST_1);
@@ -173,7 +177,11 @@ public class Scaler
         }
         catch (AmazonServiceException ex)
         {
+<<<<<<< HEAD
            log("Failed to locate config file in S3 bucket: s3://" + configBucketName + "/" + configPrefix + "/" + tableName + " (" + ex.getMessage() + ")");
+=======
+           log("Failed to read config file : s3://" + configBucketName + "/" + configPrefix + "/" + tableName + " (" + ex.getMessage() + ")");
+>>>>>>> 441fb37906a25f26b0b1cabee70846a548c54851
         }
     	return tableProperties;
     }
