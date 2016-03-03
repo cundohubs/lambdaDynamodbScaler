@@ -2,3 +2,6 @@
 *.jar
 .netbeans*
 target/*/
+build/*
+config.properties
+
